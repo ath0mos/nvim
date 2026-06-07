@@ -113,6 +113,20 @@ vim.opt.rtp:prepend(lazypath)
 --
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
+
+  {
+    'p00f/clangd_extensions.nvim',
+    ft = { 'c', 'cpp', 'objc', 'objcpp', 'cuda' },
+    dependencies = { 'neovim/nvim-lspconfig' },
+    opts = {},
+    keys = {
+      { '<leader>ch', '<cmd>ClangdSwitchSourceHeader<cr>', desc = '[C]++ Switch Source/[H]eader' },
+      { '<leader>cs', '<cmd>ClangdSymbolInfo<cr>', desc = '[C]++ [S]ymbol Info' },
+      { '<leader>ct', '<cmd>ClangdTypeHierarchy<cr>', desc = '[C]++ [T]ype Hierarchy' },
+      { '<leader>cm', '<cmd>ClangdMemoryUsage<cr>', desc = '[C]langd [M]emory Usage' },
+    },
+  },
+
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
 
@@ -429,35 +443,49 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
+      local function clangd_cmd()
+        local query_drivers = {}
+
+        for _, exe in ipairs { 'acpp', 'clang++', 'g++', 'c++' } do
+          local path = vim.fn.exepath(exe)
+          if path ~= '' then
+            table.insert(query_drivers, path)
+          end
+        end
+
+        return {
+          'clangd',
+          '--background-index',
+          '--clang-tidy',
+          '--header-insertion=iwyu',
+          '--completion-style=detailed',
+          '--function-arg-placeholders',
+          '--fallback-style=llvm',
+          '--query-driver=' .. table.concat(query_drivers, ','),
+        }
+      end
+
       local servers = {
-        clangd = {},
+        clangd = {
+          cmd = clangd_cmd(),
+          init_options = {
+            usePlaceholders = true,
+            completeUnimported = true,
+            clangdFileStatus = true,
+          },
+        },
+
         bashls = {},
         cmake = {},
         rnix = {},
         pyright = {},
 
-        -- gopls = {},
-        -- rust_analyzer = {},
-        -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
-        --
-        -- Some languages (like typescript) have entire language plugins that can be useful:
-        --    https://github.com/pmizio/typescript-tools.nvim
-        --
-        -- But for many setups, the LSP (`tsserver`) will work just fine
-        -- tsserver = {},
-        --
-
         lua_ls = {
-          -- cmd = {...},
-          -- filetypes = { ...},
-          -- capabilities = {},
           settings = {
             Lua = {
               completion = {
                 callSnippet = 'Replace',
               },
-              -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-              -- diagnostics = { disable = { 'missing-fields' } },
             },
           },
         },
@@ -708,49 +736,50 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-  { -- Highlight, edit, and navigate code
+
+  {
     'nvim-treesitter/nvim-treesitter',
+    branch = 'main',
+    lazy = false,
     build = ':TSUpdate',
-    opts = {
-      ensure_installed = {
-        'cmake',
-        'gitcommit',
+    config = function()
+      require('nvim-treesitter').setup {}
+
+      require('nvim-treesitter').install {
         'bash',
         'c',
+        'cpp',
+        'cmake',
+        'gitcommit',
         'html',
         'lua',
         'luadoc',
         'markdown',
-        'vim',
-        'vimdoc',
+        'markdown_inline',
         'nix',
         'python',
-      },
-      -- Autoinstall languages that are not installed
-      auto_install = true,
-      highlight = {
-        enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
-      },
-      indent = { enable = true, disable = { 'ruby' } },
-    },
-    config = function(_, opts)
-      -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
+        'vim',
+        'vimdoc',
+      }
 
-      -- Prefer git instead of curl in order to improve connectivity in some environments
-      require('nvim-treesitter.install').prefer_git = true
-      ---@diagnostic disable-next-line: missing-fields
-      require('nvim-treesitter.configs').setup(opts)
-
-      -- There are additional nvim-treesitter modules that you can use to interact
-      -- with nvim-treesitter. You should go explore a few and see what interests you:
-      --
-      --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-      --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-      --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = {
+          'bash',
+          'c',
+          'cpp',
+          'cmake',
+          'gitcommit',
+          'html',
+          'lua',
+          'nix',
+          'python',
+          'vim',
+          'vimdoc',
+        },
+        callback = function()
+          pcall(vim.treesitter.start)
+        end,
+      })
     end,
   },
 
@@ -766,7 +795,6 @@ require('lazy').setup({
   require 'kickstart.plugins.harpoon',
   require 'kickstart.plugins.cmake-tools',
   require 'kickstart.plugins.lsp',
-
   require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
@@ -775,7 +803,7 @@ require('lazy').setup({
   require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: CUSTOM STUFF
-  require 'custom.plugins.distant',
+  -- require 'custom.plugins.distant',
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.

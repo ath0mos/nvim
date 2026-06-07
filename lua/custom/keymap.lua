@@ -3,9 +3,6 @@ vim.api.nvim_set_keymap('i', '<C-j>', '<Esc>', { noremap = true })
 vim.api.nvim_set_keymap('t', '<C-j>', '<Esc>', { noremap = true })
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
--- FOR OPENING HTML IN BROWSER
-vim.keymap.set('n', '<C-x>', '<cmd>!firefox "%"<cr>', { desc = 'Open file in Firefox' })
-
 -- Diagnostic keymaps
 vim.keymap.set('n', '[d', function()
   vim.diagnostic.jump { count = 1, float = true }
